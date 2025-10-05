@@ -1,0 +1,439 @@
+/* Google Calendar View Styles */
+
+.google-calendar-view {
+    padding: 10px;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.calendar-header h4 {
+    margin: 0;
+    font-size: 1.1em;
+}
+
+.calendar-refresh-btn {
+    cursor: pointer;
+    background: var(--interactive-normal);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 1.2em;
+    color: var(--text-normal);
+}
+
+.calendar-refresh-btn:hover {
+    background: var(--interactive-hover);
+}
+
+.calendar-event-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.calendar-event-item {
+    padding: 10px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-secondary);
+    transition: all 0.2s ease;
+}
+
+.calendar-event-item.clickable {
+    cursor: pointer;
+}
+
+.calendar-event-item.clickable:hover {
+    background: var(--background-modifier-hover);
+    border-color: var(--interactive-accent);
+    transform: translateX(2px);
+}
+
+.calendar-event-time {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-family: var(--font-monospace);
+}
+
+.calendar-event-title {
+    font-weight: 600;
+    color: var(--text-normal);
+    margin-bottom: 4px;
+}
+
+.calendar-event-attendees {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+.calendar-no-events,
+.calendar-error {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.calendar-error {
+    color: var(--text-error);
+}
+
+/* Settings Styles */
+
+.auth-status {
+    margin-bottom: 15px;
+}
+
+.auth-status-success {
+    color: var(--text-success);
+    font-weight: 500;
+}
+
+.auth-status-error {
+    color: var(--text-error);
+    font-weight: 500;
+}
+
+.auth-step {
+    margin: 20px 0;
+    padding: 15px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    border-left: 3px solid var(--interactive-accent);
+}
+
+.auth-step h3 {
+    margin: 0 0 10px 0;
+    color: var(--text-accent);
+    font-size: 1.1em;
+}
+
+.auth-step p {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.auth-instructions {
+    padding: 10px;
+    background: var(--background-primary);
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.auth-instructions p {
+    margin: 6px 0;
+    font-size: 0.95em;
+}
+
+.auth-helper {
+    margin-top: 5px;
+}
+
+.auth-url-container {
+    margin: 15px 0;
+    padding: 10px;
+    background: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.auth-url-container a {
+    color: var(--text-accent);
+    word-break: break-all;
+}
+
+/* Auth Waiting Modal */
+
+.auth-waiting-modal {
+    text-align: center;
+    padding: 20px;
+}
+
+.auth-spinner-container {
+    display: flex;
+    justify-content: center;
+    margin: 30px 0;
+}
+
+.auth-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid var(--background-modifier-border);
+    border-top: 5px solid var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.auth-waiting-instructions {
+    margin: 20px 0;
+    padding: 15px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.auth-waiting-instructions p {
+    margin: 10px 0;
+    line-height: 1.6;
+}
+
+.auth-button-container {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+}
+
+.auth-button-container button {
+    padding: 8px 20px;
+}
+
+/* Timeline View Styles */
+
+.timeline-view-container {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.timeline-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--background-primary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    flex-shrink: 0;
+}
+
+.timeline-calendar-button {
+    padding: 6px 10px;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.timeline-calendar-button:hover {
+    background: var(--background-modifier-hover);
+}
+
+.timeline-today-button {
+    padding: 6px 16px;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.timeline-today-button:hover {
+    background: var(--interactive-accent-hover);
+}
+
+/* Calendar Picker Popup */
+.timeline-calendar-picker {
+    position: fixed;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    min-width: 280px;
+}
+
+.calendar-picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.calendar-month-label {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: var(--text-normal);
+}
+
+.calendar-nav-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2em;
+    padding: 4px 8px;
+    color: var(--text-muted);
+    border-radius: 4px;
+}
+
+.calendar-nav-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.calendar-day-names {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.calendar-day-name {
+    text-align: center;
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 4px;
+}
+
+.calendar-days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-day-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    color: var(--text-normal);
+    transition: background-color 0.2s;
+    min-width: 0;
+    width: 100%;
+}
+
+.calendar-day-cell:not(.empty):hover {
+    background: var(--background-modifier-hover);
+}
+
+.calendar-day-cell.today {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+}
+
+.calendar-day-cell.today:hover {
+    background: var(--interactive-accent-hover);
+}
+
+.calendar-day-cell.empty {
+    cursor: default;
+}
+
+.timeline-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+}
+
+.timeline-day-container {
+    margin-bottom: 100px;
+}
+
+.timeline-day-editor {
+    min-height: 100px;
+    height: auto !important;
+    position: relative;
+    display: block;
+}
+
+/* Hide view headers in embedded editors */
+.timeline-day-editor .view-header {
+    display: none !important;
+}
+
+.timeline-day-editor .view-actions {
+    display: none !important;
+}
+
+/* Style the embedded leaf - match Daily Notes Editor exactly */
+.timeline-day-editor .workspace-leaf {
+    all: unset;
+    height: 100%;
+    width: 100%;
+}
+
+.timeline-day-editor .workspace-split {
+    height: 100%;
+    width: 100%;
+}
+
+.timeline-day-editor .workspace-leaf-content {
+    border-radius: 0;
+    height: 100%;
+    width: 100%;
+}
+
+.timeline-day-editor .view-content {
+    height: 100%;
+    width: 100%;
+}
+
+/* Style the markdown view */
+.timeline-day-editor .markdown-source-view {
+    padding: 0;
+}
+
+/* Style the CodeMirror editor - match Daily Notes Editor approach */
+.timeline-day-editor .markdown-source-view.mod-cm6 .cm-editor {
+    min-height: auto;
+    background: var(--background-primary);
+}
+
+.timeline-day-editor .cm-scroller {
+    padding: 0 !important;
+    overflow-y: clip;
+}
+
+.timeline-day-editor .cm-content {
+    padding: 12px 20px;
+    padding-bottom: 0 !important;
+    padding-top: 0 !important;
+}
+
+.timeline-day-editor .cm-line {
+    padding-left: 4px;
+}
+
+/* Error state */
+.timeline-editor-error {
+    color: var(--text-error);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-secondary);
+}
+
+.timeline-editor-error:hover {
+    background: var(--background-modifier-hover);
+}

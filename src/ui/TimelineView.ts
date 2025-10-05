@@ -1,0 +1,545 @@
+import { ItemView, WorkspaceLeaf } from 'obsidian';
+import TimelineNotesPlugin from '../../main';
+import { DailyNoteManager } from '../daily-notes/DailyNoteManager';
+import { DaySection } from './DaySection';
+
+export const TIMELINE_VIEW_TYPE = 'daily-timeline-view';
+
+export class TimelineView extends ItemView {
+    private plugin: TimelineNotesPlugin;
+    private dailyNoteManager: DailyNoteManager;
+    private daySections: Map<number, DaySection> = new Map();
+    private scrollContainer: HTMLElement | null = null;
+    private currentDayOffset: number = 0; // 0 = today, -1 = yesterday, +1 = tomorrow
+    private visibleDays: number = 7; // Number of days to render at once
+    private loadMoreThreshold: number = 500; // Pixels from edge to trigger load
+    private intersectionObserver: IntersectionObserver | null = null;
+    private currentVisibleDate: Date | null = null;
+    private calendarPickerEl: HTMLElement | null = null;
+    private isRendering: boolean = false;
+    private focusedDayOffset: number | null = null; // Track manually focused day
+
+    constructor(leaf: WorkspaceLeaf, plugin: TimelineNotesPlugin) {
+        super(leaf);
+        this.plugin = plugin;
+
+        // Initialize daily note manager
+        this.dailyNoteManager = new DailyNoteManager(this.app, {
+            folder: plugin.settings.dailyNotesFolder,
+            dateFormat: plugin.settings.dailyNoteDateFormat,
+            templatePath: plugin.settings.dailyNoteTemplate
+        });
+
+        // Set up intersection observer for tracking visible days
+        this.setupIntersectionObserver();
+    }
+
+    getViewType(): string {
+        return TIMELINE_VIEW_TYPE;
+    }
+
+    getDisplayText(): string {
+        return 'Daily Timeline';
+    }
+
+    getIcon(): string {
+        return 'calendar-days';
+    }
+
+    async onOpen(): Promise<void> {
+        const container = this.containerEl;
+        container.empty();
+        container.addClass('timeline-view-container');
+
+        // Add action button to the view header (top right)
+        this.addAction('calendar-check', 'Go to today', () => {
+            this.scrollToToday();
+        });
+
+        // Create a fixed toolbar at the top
+        const toolbar = container.createDiv({ cls: 'timeline-toolbar' });
+
+        // Calendar picker button
+        const calendarButton = toolbar.createEl('button', {
+            cls: 'timeline-calendar-button'
+        });
+        calendarButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
+        calendarButton.addEventListener('click', (e) => {
+            this.showCalendarPicker(e);
+        });
+
+        // Today button
+        const todayButton = toolbar.createEl('button', {
+            text: 'Today',
+            cls: 'timeline-today-button'
+        });
+        todayButton.addEventListener('click', () => {
+            this.scrollToToday();
+        });
+
+        // Create scroll container
+        this.scrollContainer = container.createDiv({ cls: 'timeline-scroll-container' });
+
+        // Initial render - show today +/- some days
+        await this.renderDays(-3, 3); // Show 3 days before and after today
+
+        // Set up scroll listener
+        this.scrollContainer.addEventListener('scroll', () => this.onScroll());
+
+        // Set up click listener to detect when user focuses on a day's editor
+        this.scrollContainer.addEventListener('click', (e) => {
+            this.onEditorClick(e);
+        });
+    }
+
+    async onClose(): Promise<void> {
+        // Disconnect intersection observer
+        if (this.intersectionObserver) {
+            this.intersectionObserver.disconnect();
+            this.intersectionObserver = null;
+        }
+
+        // Clean up all day sections
+        this.daySections.forEach(section => section.destroy());
+        this.daySections.clear();
+    }
+
+    /**
+     * Set up intersection observer to track which day is currently visible
+     */
+    private setupIntersectionObserver(): void {
+        // Create intersection observer with threshold at the top of viewport
+        this.intersectionObserver = new IntersectionObserver(
+            (entries: IntersectionObserverEntry[]) => {
+                // Check if the focused day is still visible
+                if (this.focusedDayOffset !== null) {
+                    const focusedDayVisible = entries.some((entry: IntersectionObserverEntry) => {
+                        if (entry.target) {
+                            const offset = parseInt((entry.target as HTMLElement).getAttribute('data-offset') || '0', 10);
+                            return offset === this.focusedDayOffset && entry.isIntersecting;
+                        }
+                        return false;
+                    });
+
+                    // If the focused day is no longer visible, unlock
+                    if (!focusedDayVisible) {
+                        this.focusedDayOffset = null;
+                    } else {
+                        // Keep the focused day locked, don't update based on scroll
+                        return;
+                    }
+                }
+
+                // Find the entry that is most visible at the top
+                // Once we've scrolled past a day by 100px (the margin), we should switch to the next day
+                let topMostEntry: IntersectionObserverEntry | undefined;
+                let topMostY = Infinity;
+
+                entries.forEach((entry: IntersectionObserverEntry) => {
+                    if (entry.isIntersecting && entry.target) {
+                        const rect = entry.boundingClientRect;
+                        // Only consider entries that are within 100px of the top (accounting for the 100px margin)
+                        // If rect.top is negative, it means the day has scrolled past the top
+                        // We want to switch to the next day once the previous day is fully past (< -100px)
+                        if (rect.top < topMostY && rect.top > -100) {
+                            topMostY = rect.top;
+                            topMostEntry = entry;
+                        }
+                    }
+                });
+
+                if (topMostEntry) {
+                    // Find which day section this corresponds to
+                    const element = topMostEntry.target as HTMLElement;
+                    const offset = parseInt(element.getAttribute('data-offset') || '0', 10);
+                    const section = this.daySections.get(offset);
+
+                    if (section) {
+                        const date = section.getDate();
+
+                        // Only trigger if date changed
+                        if (!this.currentVisibleDate ||
+                            date.toDateString() !== this.currentVisibleDate.toDateString()) {
+                            this.currentVisibleDate = date;
+                            this.onVisibleDayChanged(date);
+                        }
+                    }
+                }
+            },
+            {
+                root: null, // Use viewport
+                rootMargin: '0px 0px -90% 0px', // Trigger when day enters top 10% of viewport
+                threshold: [0, 0.1, 0.25, 0.5, 0.75, 1.0]
+            }
+        );
+    }
+
+    /**
+     * Called when the visible day changes
+     */
+    private onVisibleDayChanged(date: Date): void {
+        // Trigger event on plugin for other views to listen
+        this.plugin.app.workspace.trigger('timeline-visible-day-changed', date);
+    }
+
+    /**
+     * Handle clicks on editors to detect focused day
+     */
+    private onEditorClick(event: MouseEvent): void {
+        // Find which day container was clicked
+        const target = event.target as HTMLElement;
+        const dayContainer = target.closest('.timeline-day-container') as HTMLElement;
+
+        if (dayContainer) {
+            const offset = parseInt(dayContainer.getAttribute('data-offset') || '0', 10);
+            const section = this.daySections.get(offset);
+
+            if (section) {
+                const date = section.getDate();
+
+                // Lock focus to this day
+                this.focusedDayOffset = offset;
+
+                // Update current visible date and trigger change
+                if (!this.currentVisibleDate ||
+                    date.toDateString() !== this.currentVisibleDate.toDateString()) {
+                    this.currentVisibleDate = date;
+                    this.onVisibleDayChanged(date);
+                }
+            }
+        }
+    }
+
+    /**
+     * Handle scroll events to implement infinite scroll
+     */
+    private onScroll(): void {
+        if (!this.scrollContainer) return;
+
+        const scrollTop = this.scrollContainer.scrollTop;
+        const scrollHeight = this.scrollContainer.scrollHeight;
+        const clientHeight = this.scrollContainer.clientHeight;
+
+        // Check if we're near the top (scroll up to load past days)
+        if (scrollTop < this.loadMoreThreshold) {
+            this.loadMorePast();
+        }
+
+        // Check if we're near the bottom (scroll down to load future days)
+        if (scrollTop + clientHeight > scrollHeight - this.loadMoreThreshold) {
+            this.loadMoreFuture();
+        }
+    }
+
+    /**
+     * Load more days in the past
+     */
+    private async loadMorePast(): Promise<void> {
+        const currentMin = Math.min(...Array.from(this.daySections.keys()));
+        const startOffset = currentMin - 3; // Load 3 more days
+        const endOffset = currentMin - 1;
+
+        await this.renderDays(startOffset, endOffset, 'prepend');
+    }
+
+    /**
+     * Load more days in the future
+     */
+    private async loadMoreFuture(): Promise<void> {
+        const currentMax = Math.max(...Array.from(this.daySections.keys()));
+        const startOffset = currentMax + 1;
+        const endOffset = currentMax + 3; // Load 3 more days
+
+        await this.renderDays(startOffset, endOffset, 'append');
+    }
+
+    /**
+     * Render days for a given offset range
+     * @param startOffset - Starting day offset from today (e.g., -1 for yesterday)
+     * @param endOffset - Ending day offset from today
+     * @param mode - 'append' to add at end, 'prepend' to add at start, 'replace' to clear and add
+     */
+    private async renderDays(startOffset: number, endOffset: number, mode: 'append' | 'prepend' | 'replace' = 'replace'): Promise<void> {
+        if (!this.scrollContainer) return;
+
+        // Prevent concurrent rendering
+        if (this.isRendering && mode !== 'replace') {
+            return;
+        }
+        this.isRendering = true;
+
+        try {
+            if (mode === 'replace') {
+                // Clear existing sections
+                this.daySections.forEach(section => section.destroy());
+                this.daySections.clear();
+                this.scrollContainer.empty();
+            }
+
+            // Render days in order
+            // For prepending, we need to iterate in reverse to maintain chronological order
+            const offsets = [];
+            for (let offset = startOffset; offset <= endOffset; offset++) {
+                // Skip if already rendered
+                if (!this.daySections.has(offset)) {
+                    offsets.push(offset);
+                }
+            }
+
+            // Reverse for prepending so oldest days are at the top
+            if (mode === 'prepend') {
+                offsets.reverse();
+            }
+
+            for (const offset of offsets) {
+                const date = this.getDateFromOffset(offset);
+                const dayContainer = this.scrollContainer.createDiv({ cls: 'timeline-day-container' });
+
+                // Add data attribute for tracking
+                dayContainer.setAttribute('data-offset', offset.toString());
+
+                // Prepend or append based on mode
+                if (mode === 'prepend') {
+                    this.scrollContainer.insertBefore(dayContainer, this.scrollContainer.firstChild);
+                }
+
+                const daySection = new DaySection(dayContainer, date, this.plugin, this.dailyNoteManager);
+                await daySection.render();
+
+                this.daySections.set(offset, daySection);
+
+                // Observe this element with intersection observer
+                if (this.intersectionObserver) {
+                    this.intersectionObserver.observe(dayContainer);
+                }
+            }
+        } finally {
+            this.isRendering = false;
+        }
+    }
+
+    /**
+     * Get a Date object for a given offset from today
+     */
+    private getDateFromOffset(offset: number): Date {
+        const today = new Date();
+        const date = new Date(today);
+        date.setDate(date.getDate() + offset);
+        return date;
+    }
+
+    /**
+     * Scroll to a specific day offset
+     */
+    scrollToDay(offset: number): void {
+        const section = this.daySections.get(offset);
+        if (section && this.scrollContainer) {
+            const dayElement = this.scrollContainer.querySelector(`[data-offset="${offset}"]`) as HTMLElement;
+            if (dayElement) {
+                // The title inside the note needs some space from the top
+                // Add enough offset so the note title isn't hidden under anything
+                // offsetTop is relative to the scroll container's padding area
+                const elementOffsetTop = dayElement.offsetTop;
+
+                // Scroll with extra space from top (40px gives good breathing room)
+                this.scrollContainer.scrollTo({
+                    top: elementOffsetTop - 40,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }
+
+    /**
+     * Scroll to today (offset 0)
+     */
+    scrollToToday(): void {
+        this.scrollToDay(0);
+    }
+
+    /**
+     * Show calendar picker popup
+     */
+    private showCalendarPicker(event: MouseEvent): void {
+        event.stopPropagation();
+
+        // If picker is already open, close it
+        if (this.calendarPickerEl) {
+            this.calendarPickerEl.remove();
+            this.calendarPickerEl = null;
+            return;
+        }
+
+        // Create popup
+        this.calendarPickerEl = document.body.createDiv({ cls: 'timeline-calendar-picker' });
+
+        // Get the button element (might be the SVG or the button itself)
+        let buttonEl = event.target as HTMLElement;
+        if (buttonEl.tagName === 'svg' || buttonEl.tagName === 'line' || buttonEl.tagName === 'rect') {
+            buttonEl = buttonEl.closest('button') as HTMLElement;
+        }
+
+        // Position near the button
+        const buttonRect = buttonEl.getBoundingClientRect();
+        this.calendarPickerEl.style.top = `${buttonRect.bottom + 5}px`;
+        this.calendarPickerEl.style.left = `${buttonRect.left}px`;
+
+        // Render calendar
+        this.renderCalendarPicker(new Date());
+
+        // Close when clicking outside
+        const closeOnClickOutside = (e: MouseEvent) => {
+            if (this.calendarPickerEl && !this.calendarPickerEl.contains(e.target as Node) &&
+                !(e.target as HTMLElement).closest('.timeline-calendar-button')) {
+                this.closeCalendarPicker();
+                document.removeEventListener('click', closeOnClickOutside);
+            }
+        };
+        setTimeout(() => {
+            document.addEventListener('click', closeOnClickOutside);
+        }, 0);
+    }
+
+    /**
+     * Close calendar picker
+     */
+    private closeCalendarPicker(): void {
+        if (this.calendarPickerEl) {
+            this.calendarPickerEl.remove();
+            this.calendarPickerEl = null;
+        }
+    }
+
+    /**
+     * Render calendar picker for a given month
+     */
+    private renderCalendarPicker(currentMonth: Date): void {
+        if (!this.calendarPickerEl) return;
+
+        this.calendarPickerEl.empty();
+
+        // Header with month navigation
+        const header = this.calendarPickerEl.createDiv({ cls: 'calendar-picker-header' });
+
+        const prevBtn = header.createEl('button', { text: '‹', cls: 'calendar-nav-btn' });
+        prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const prevMonth = new Date(currentMonth);
+            prevMonth.setMonth(prevMonth.getMonth() - 1);
+            this.renderCalendarPicker(prevMonth);
+        });
+
+        const monthLabel = header.createEl('span', {
+            text: currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            cls: 'calendar-month-label'
+        });
+
+        const nextBtn = header.createEl('button', { text: '›', cls: 'calendar-nav-btn' });
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nextMonth = new Date(currentMonth);
+            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            this.renderCalendarPicker(nextMonth);
+        });
+
+        // Day names
+        const dayNames = this.calendarPickerEl.createDiv({ cls: 'calendar-day-names' });
+        ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(day => {
+            dayNames.createEl('div', { text: day, cls: 'calendar-day-name' });
+        });
+
+        // Days grid
+        const daysGrid = this.calendarPickerEl.createDiv({ cls: 'calendar-days-grid' });
+
+        // Get first day of month and total days
+        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+        const firstDayOfWeek = firstDay.getDay();
+        const totalDays = lastDay.getDate();
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Empty cells before first day
+        for (let i = 0; i < firstDayOfWeek; i++) {
+            daysGrid.createDiv({ cls: 'calendar-day-cell empty' });
+        }
+
+        // Day cells
+        for (let day = 1; day <= totalDays; day++) {
+            const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+            date.setHours(0, 0, 0, 0);
+
+            const dayCell = daysGrid.createEl('button', {
+                text: day.toString(),
+                cls: 'calendar-day-cell'
+            });
+
+            // Highlight today
+            if (date.getTime() === today.getTime()) {
+                dayCell.addClass('today');
+            }
+
+            dayCell.addEventListener('click', async (e) => {
+                e.stopPropagation();
+
+                // Close the picker first
+                this.closeCalendarPicker();
+
+                // Navigate to the date
+                await this.goToDate(date);
+            });
+        }
+    }
+
+    /**
+     * Navigate to a specific date
+     */
+    private async goToDate(targetDate: Date): Promise<void> {
+        // Calculate offset from today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const target = new Date(targetDate);
+        target.setHours(0, 0, 0, 0);
+
+        const diffTime = target.getTime() - today.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        // Check if day is already rendered
+        if (this.daySections.has(diffDays)) {
+            // Small delay to ensure UI is ready
+            setTimeout(() => {
+                this.scrollToDay(diffDays);
+            }, 100);
+        } else {
+            // Need to render the day first
+            // Determine if we need to prepend or append
+            const currentMin = Math.min(...Array.from(this.daySections.keys()));
+            const currentMax = Math.max(...Array.from(this.daySections.keys()));
+
+            if (diffDays < currentMin) {
+                // Render from diffDays to currentMin - 1
+                await this.renderDays(diffDays, currentMin - 1, 'prepend');
+            } else if (diffDays > currentMax) {
+                // Render from currentMax + 1 to diffDays
+                await this.renderDays(currentMax + 1, diffDays, 'append');
+            }
+
+            // Wait a bit longer for new content to be fully rendered
+            setTimeout(() => {
+                this.scrollToDay(diffDays);
+            }, 300);
+        }
+    }
+
+    /**
+     * Update daily note manager configuration
+     */
+    updateConfig(): void {
+        this.dailyNoteManager.updateConfig({
+            folder: this.plugin.settings.dailyNotesFolder,
+            dateFormat: this.plugin.settings.dailyNoteDateFormat,
+            templatePath: this.plugin.settings.dailyNoteTemplate
+        });
+    }
+}
