@@ -1,10 +1,10 @@
 {
   "id": "timeline-notes",
   "name": "Timeline Notes",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "0.15.0",
   "description": "Timeline view for daily notes with Google Calendar integration. Desktop only due to Google Calendar API requirements.",
   "author": "Vincent Saluzzo",
-  "authorUrl": "https://github.com/yourusername",
+  "authorUrl": "https://github.com/vincentsaluzzo",
   "isDesktopOnly": true
 }
