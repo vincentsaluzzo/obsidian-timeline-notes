@@ -215,7 +215,7 @@ export class TimelineNotesSettingTab extends PluginSettingTab {
 
         // Auth Status
         const authStatus = containerEl.createDiv({ cls: 'auth-status' });
-        if (this.plugin.authManager.isAuthenticated()) {
+        if (this.plugin.authManager && this.plugin.authManager.isAuthenticated()) {
             authStatus.createEl('p', {
                 text: '✅ Authenticated with Google Calendar',
                 cls: 'auth-status-success'
@@ -238,7 +238,7 @@ export class TimelineNotesSettingTab extends PluginSettingTab {
                 }));
 
         // Clear Auth Button
-        if (this.plugin.authManager.isAuthenticated()) {
+        if (this.plugin.authManager && this.plugin.authManager.isAuthenticated()) {
             new Setting(containerEl)
                 .setName('Clear Authentication')
                 .setDesc('Remove stored authentication tokens')
@@ -246,11 +246,13 @@ export class TimelineNotesSettingTab extends PluginSettingTab {
                     .setButtonText('Clear Authentication')
                     .setWarning()
                     .onClick(async () => {
-                        this.plugin.authManager.clearAuth();
-                        this.plugin.settings.tokenData = null;
-                        await this.plugin.saveSettings();
-                        new Notice('Authentication cleared');
-                        this.display(); // Refresh settings display
+                        if (this.plugin.authManager) {
+                            this.plugin.authManager.clearAuth();
+                            this.plugin.settings.tokenData = null;
+                            await this.plugin.saveSettings();
+                            new Notice('Authentication cleared');
+                            this.display(); // Refresh settings display
+                        }
                     }));
         }
     }
@@ -309,6 +311,11 @@ export class TimelineNotesSettingTab extends PluginSettingTab {
     }
 
     async startAuthFlow(): Promise<void> {
+        if (!this.plugin.authManager) {
+            new Notice('Authentication is not available on this platform');
+            return;
+        }
+
         if (!this.plugin.settings.clientId || !this.plugin.settings.clientSecret) {
             new Notice('Please enter Client ID and Client Secret first');
             return;
@@ -336,6 +343,9 @@ export class TimelineNotesSettingTab extends PluginSettingTab {
 
         try {
             // Start automatic OAuth flow with callback server
+            if (!this.plugin.authManager) {
+                throw new Error('Auth manager not available');
+            }
             const tokenData = await this.plugin.authManager.authenticateWithCallback();
 
             if (!authCancelled) {

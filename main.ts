@@ -3,11 +3,11 @@ import { TimelineView, TIMELINE_VIEW_TYPE } from './src/ui/TimelineView';
 import { TimelineNotesSettingTab } from './src/ui/SettingsTab';
 
 // These will be imported dynamically on desktop only
-let CalendarView: any;
+let CalendarView: typeof import('./src/ui/CalendarView').CalendarView | undefined;
 let CALENDAR_VIEW_TYPE: string;
-let AuthManager: any;
-let GoogleCalendarAPI: any;
-type TokenData = any;
+let AuthManager: typeof import('./src/calendar/AuthManager').AuthManager | undefined;
+let GoogleCalendarAPI: typeof import('./src/calendar/GoogleCalendarAPI').GoogleCalendarAPI | undefined;
+type TokenData = import('./src/calendar/AuthManager').TokenData;
 
 interface TimelineNotesSettings {
     clientId: string;
@@ -31,8 +31,8 @@ const DEFAULT_SETTINGS: TimelineNotesSettings = {
 
 export default class TimelineNotesPlugin extends Plugin {
     settings: TimelineNotesSettings;
-    authManager: any;
-    calendarAPI: any;
+    authManager: InstanceType<NonNullable<typeof AuthManager>> | null = null;
+    calendarAPI: InstanceType<NonNullable<typeof GoogleCalendarAPI>> | null = null;
 
     async onload() {
         await this.loadSettings();
@@ -75,10 +75,13 @@ export default class TimelineNotesPlugin extends Plugin {
                 this.calendarAPI = new GoogleCalendarAPI(this.authManager);
 
                 // Register the calendar view (desktop only)
-                this.registerView(
-                    CALENDAR_VIEW_TYPE,
-                    (leaf) => new CalendarView(leaf, this, this.calendarAPI)
-                );
+                if (CalendarView && this.calendarAPI) {
+                    const CalendarViewClass = CalendarView;
+                    this.registerView(
+                        CALENDAR_VIEW_TYPE,
+                        (leaf) => new CalendarViewClass(leaf, this, this.calendarAPI!)
+                    );
+                }
             } catch (error) {
                 console.error('Failed to load Google Calendar modules (desktop features will be unavailable):', error);
             }
@@ -175,9 +178,8 @@ export default class TimelineNotesPlugin extends Plugin {
     }
 
     async onunload() {
-        // Detach all views
-        this.app.workspace.detachLeavesOfType(CALENDAR_VIEW_TYPE);
-        this.app.workspace.detachLeavesOfType(TIMELINE_VIEW_TYPE);
+        // Views will be automatically cleaned up by Obsidian
+        // Do not detach leaves with custom view types
     }
 
     async loadSettings() {

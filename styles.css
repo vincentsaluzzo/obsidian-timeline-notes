@@ -255,6 +255,8 @@
 /* Calendar Picker Popup */
 .timeline-calendar-picker {
     position: fixed;
+    top: var(--picker-top, 0);
+    left: var(--picker-left, 0);
     background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
     border-radius: 8px;
@@ -372,6 +374,16 @@
 
 .timeline-day-editor .view-actions {
     display: none !important;
+}
+
+/* Hide embedded leaf elements */
+.embedded-leaf-hidden {
+    display: none !important;
+}
+
+/* Dynamic min-height for editor containers */
+.has-min-height {
+    min-height: var(--editor-min-height, 100px);
 }
 
 /* Style the embedded leaf - match Daily Notes Editor exactly */

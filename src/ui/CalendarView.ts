@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, Editor, MarkdownView } from 'obsidian';
 import { GoogleCalendarAPI, CalendarEvent } from '../calendar/GoogleCalendarAPI';
 import { WikiLinkFormatter } from '../utils/WikiLinkFormatter';
 import { DateUtils } from '../utils/DateUtils';
@@ -313,7 +313,7 @@ export class CalendarView extends ItemView {
      * Check if the current line or context is in a list
      * Returns true if cursor is in a list item context
      */
-    private isCurrentLineInList(editor: any, lineNumber: number): boolean {
+    private isCurrentLineInList(editor: Editor, lineNumber: number): boolean {
         const line = editor.getLine(lineNumber);
 
         // Check if current line starts with list marker
@@ -339,47 +339,32 @@ export class CalendarView extends ItemView {
      * Find a markdown editor in the workspace
      * Looks for MarkdownView with an editor, excluding the calendar view itself
      */
-    private findMarkdownEditor(): any {
+    private findMarkdownEditor(): Editor | null {
         // Check if we're in timeline view - if so, find the editor in the currently visible day
         const timelineLeaves = this.app.workspace.getLeavesOfType('daily-timeline-view');
         if (timelineLeaves.length > 0) {
-            // Get all embedded markdown views in the timeline
+            // Get all leaves in the timeline container
             const timelineContainer = timelineLeaves[0].view.containerEl;
-            const embeddedEditors = timelineContainer.querySelectorAll('.timeline-day-editor .markdown-source-view');
+            const leaves = this.app.workspace.getLeavesOfType('markdown');
 
-            // Find the one that's most visible (closest to viewport top)
-            let closestEditor: any = null;
+            // Find the most visible editor in the timeline view
+            let closestEditor: Editor | null = null;
             let closestDistance = Infinity;
 
-            embeddedEditors.forEach((editorEl: Element) => {
-                const rect = editorEl.getBoundingClientRect();
-                const distance = Math.abs(rect.top);
-
-                if (distance < closestDistance && rect.top >= 0 && rect.bottom > 0) {
-                    // Try to get the editor from this element
-                    // @ts-ignore
-                    const cmEditor = editorEl.cmView?.view;
-                    if (cmEditor) {
-                        // Create a wrapper that mimics the editor API
-                        const leaf = timelineContainer.querySelector('.workspace-leaf');
-                        if (leaf) {
-                            // @ts-ignore - access the leaf's view
-                            const views = Array.from(timelineContainer.querySelectorAll('.workspace-leaf'))
-                                .map((l: any) => l.view)
-                                .filter(v => v && v.editor);
-
-                            for (const view of views) {
-                                const viewRect = view.containerEl.getBoundingClientRect();
-                                if (Math.abs(viewRect.top - rect.top) < 100) {
-                                    closestEditor = view.editor;
-                                    closestDistance = distance;
-                                    break;
-                                }
-                            }
+            for (const leaf of leaves) {
+                const view = leaf.view;
+                if (view instanceof MarkdownView && view.editor) {
+                    const viewRect = view.containerEl.getBoundingClientRect();
+                    // Check if this view is inside the timeline container
+                    if (timelineContainer.contains(view.containerEl)) {
+                        const distance = Math.abs(viewRect.top);
+                        if (distance < closestDistance && viewRect.top >= 0 && viewRect.bottom > 0) {
+                            closestEditor = view.editor;
+                            closestDistance = distance;
                         }
                     }
                 }
-            });
+            }
 
             if (closestEditor) {
                 return closestEditor;
@@ -388,22 +373,14 @@ export class CalendarView extends ItemView {
 
         // Try to get the active leaf first
         const activeLeaf = this.app.workspace.getMostRecentLeaf();
-        if (activeLeaf && activeLeaf.view.getViewType() === 'markdown') {
-            // @ts-ignore - accessing editor
-            const editor = activeLeaf.view.editor;
-            if (editor) {
-                return editor;
-            }
+        if (activeLeaf && activeLeaf.view instanceof MarkdownView) {
+            return activeLeaf.view.editor;
         }
 
         // Fallback: search all leaves for a markdown view
         const leaves = this.app.workspace.getLeavesOfType('markdown');
-        if (leaves.length > 0) {
-            // @ts-ignore - accessing editor
-            const editor = leaves[0].view.editor;
-            if (editor) {
-                return editor;
-            }
+        if (leaves.length > 0 && leaves[0].view instanceof MarkdownView) {
+            return leaves[0].view.editor;
         }
 
         return null;

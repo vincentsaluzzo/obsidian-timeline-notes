@@ -1,5 +1,19 @@
-import { App, WorkspaceLeaf, TFile, MarkdownView, WorkspaceItem } from 'obsidian';
+import { App, WorkspaceLeaf, TFile, MarkdownView, WorkspaceItem, WorkspaceSplit } from 'obsidian';
 import TimelineNotesPlugin from '../../main';
+
+/**
+ * Partial implementation of WorkspaceSplit for embedded leaves
+ * This creates a minimal split container that isn't part of the main layout
+ * Using Record to allow additional methods not in the base type
+ */
+interface EmbeddedWorkspaceSplit extends Partial<WorkspaceSplit>, Record<string, any> {
+    app: App;
+    workspace: typeof App.prototype.workspace;
+    containerEl: HTMLElement;
+    children: WorkspaceItem[];
+    doc: Document;
+    win: Window;
+}
 
 /**
  * Spawns an embedded workspace leaf in a container element
@@ -10,7 +24,7 @@ export function spawnLeafInContainer(
     containerEl: HTMLElement
 ): WorkspaceLeaf {
     // Create a minimal split container that won't be part of the main layout
-    const split: any = {
+    const split: EmbeddedWorkspaceSplit = {
         app: plugin.app,
         workspace: plugin.app.workspace,
         containerEl: containerEl,
@@ -23,7 +37,8 @@ export function spawnLeafInContainer(
         },
 
         getContainer() {
-            return containerEl;
+            // Return container element cast to any since we're mocking the WorkspaceContainer interface
+            return containerEl as any;
         },
 
         insertChild(index: number, child: WorkspaceItem, resize: boolean = true) {
@@ -60,8 +75,8 @@ export function spawnLeafInContainer(
     };
 
     // Create a leaf using Obsidian's internal method
-    // @ts-ignore - accessing internal API
-    const leaf = plugin.app.workspace.createLeafInParent(split, 0);
+    // @ts-ignore - accessing internal API, split is a partial implementation
+    const leaf = plugin.app.workspace.createLeafInParent(split as WorkspaceSplit, 0);
 
     return leaf;
 }
@@ -104,8 +119,9 @@ export async function openFileInLeaf(
                 const actualHeight = cm.dom.innerHeight;
 
                 if (actualHeight > 0) {
-                    // Apply this as min-height on the container
-                    containerEl.style.minHeight = `${actualHeight}px`;
+                    // Apply this as min-height on the container via CSS class and custom property
+                    containerEl.style.setProperty('--editor-min-height', `${actualHeight}px`);
+                    containerEl.addClass('has-min-height');
                     window.clearTimeout(timeout);
                 }
             }
@@ -123,13 +139,13 @@ export function hideLeafHeader(leaf: WorkspaceLeaf): void {
     // Hide header
     const header = view.containerEl.querySelector('.view-header');
     if (header instanceof HTMLElement) {
-        header.style.display = 'none';
+        header.addClass('embedded-leaf-hidden');
     }
 
     // Hide actions
     const actions = view.containerEl.querySelector('.view-actions');
     if (actions instanceof HTMLElement) {
-        actions.style.display = 'none';
+        actions.addClass('embedded-leaf-hidden');
     }
 }
 

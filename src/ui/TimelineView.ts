@@ -63,7 +63,48 @@ export class TimelineView extends ItemView {
         const calendarButton = toolbar.createEl('button', {
             cls: 'timeline-calendar-button'
         });
-        calendarButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
+        // Create SVG icon using DOM API
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '16');
+        svg.setAttribute('height', '16');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', '3');
+        rect.setAttribute('y', '4');
+        rect.setAttribute('width', '18');
+        rect.setAttribute('height', '18');
+        rect.setAttribute('rx', '2');
+        rect.setAttribute('ry', '2');
+        svg.appendChild(rect);
+
+        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line1.setAttribute('x1', '16');
+        line1.setAttribute('y1', '2');
+        line1.setAttribute('x2', '16');
+        line1.setAttribute('y2', '6');
+        svg.appendChild(line1);
+
+        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line2.setAttribute('x1', '8');
+        line2.setAttribute('y1', '2');
+        line2.setAttribute('x2', '8');
+        line2.setAttribute('y2', '6');
+        svg.appendChild(line2);
+
+        const line3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line3.setAttribute('x1', '3');
+        line3.setAttribute('y1', '10');
+        line3.setAttribute('x2', '21');
+        line3.setAttribute('y2', '10');
+        svg.appendChild(line3);
+
+        calendarButton.appendChild(svg);
         calendarButton.addEventListener('click', (e) => {
             this.showCalendarPicker(e);
         });
@@ -381,8 +422,8 @@ export class TimelineView extends ItemView {
 
         // Position near the button
         const buttonRect = buttonEl.getBoundingClientRect();
-        this.calendarPickerEl.style.top = `${buttonRect.bottom + 5}px`;
-        this.calendarPickerEl.style.left = `${buttonRect.left}px`;
+        this.calendarPickerEl.style.setProperty('--picker-top', `${buttonRect.bottom + 5}px`);
+        this.calendarPickerEl.style.setProperty('--picker-left', `${buttonRect.left}px`);
 
         // Render calendar
         this.renderCalendarPicker(new Date());
