@@ -161,9 +161,12 @@ export class TimelineView extends ItemView {
     }
 
     // Manually trigger initial visible day change for today
+    // Use a small delay to ensure all views are loaded (especially CalendarView)
     const todayDate = new Date(this.referenceDate);
     this.currentVisibleDate = todayDate;
-    this.onVisibleDayChanged(todayDate);
+    setTimeout(() => {
+      this.onVisibleDayChanged(todayDate);
+    }, 100);
 
     // Set up scroll listener
     this.scrollContainer.addEventListener("scroll", () => this.onScroll());

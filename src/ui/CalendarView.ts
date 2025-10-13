@@ -68,7 +68,13 @@ export class CalendarView extends ItemView {
         );
 
         // Initial load
-        this.onActiveFileChanged();
+        if (this.isTimelineViewActive()) {
+            // If timeline is already active (e.g., on Obsidian startup), load today's events
+            this.currentDate = new Date();
+            await this.refreshEvents();
+        } else {
+            this.onActiveFileChanged();
+        }
         this.startAutoRefresh();
     }
 
