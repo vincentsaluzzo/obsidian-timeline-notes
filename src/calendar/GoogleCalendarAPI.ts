@@ -51,31 +51,36 @@ export class GoogleCalendarAPI {
 
             const events = response.data.items || [];
 
-            return events.map(event => {
-                // Handle all-day events
-                const startTime = event.start?.dateTime || event.start?.date || '';
-                const endTime = event.end?.dateTime || event.end?.date || '';
+            return events
+                .filter(event => {
+                    // Exclude working location events
+                    return event.eventType !== 'workingLocation';
+                })
+                .map(event => {
+                    // Handle all-day events
+                    const startTime = event.start?.dateTime || event.start?.date || '';
+                    const endTime = event.end?.dateTime || event.end?.date || '';
 
-                // Extract attendees
-                const attendees = (event.attendees || [])
-                    .filter(attendee =>
-                        attendee.email &&
-                        !attendee.self &&
-                        !attendee.resource // Exclude meeting rooms and resources
-                    )
-                    .map(attendee => ({
-                        email: attendee.email!,
-                        displayName: attendee.displayName || undefined
-                    }));
+                    // Extract attendees
+                    const attendees = (event.attendees || [])
+                        .filter(attendee =>
+                            attendee.email &&
+                            !attendee.self &&
+                            !attendee.resource // Exclude meeting rooms and resources
+                        )
+                        .map(attendee => ({
+                            email: attendee.email!,
+                            displayName: attendee.displayName || undefined
+                        }));
 
-                return {
-                    id: event.id || '',
-                    summary: event.summary || 'Untitled Event',
-                    start: startTime,
-                    end: endTime,
-                    attendees: attendees
-                };
-            });
+                    return {
+                        id: event.id || '',
+                        summary: event.summary || 'Untitled Event',
+                        start: startTime,
+                        end: endTime,
+                        attendees: attendees
+                    };
+                });
         } catch (error) {
             console.error('Error fetching calendar events:', error);
             new Notice('Failed to fetch calendar events. Check your authentication.');

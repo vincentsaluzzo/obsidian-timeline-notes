@@ -180,8 +180,18 @@ export class CalendarView extends ItemView {
             // Create event list
             const eventList = container.createDiv({ cls: 'calendar-event-list' });
 
+            const now = new Date();
+
             this.events.forEach(event => {
                 const eventEl = eventList.createDiv({ cls: 'calendar-event-item' });
+
+                // Check if event is in the past
+                if (event.end) {
+                    const eventEndTime = new Date(event.end);
+                    if (eventEndTime < now) {
+                        eventEl.addClass('past-event');
+                    }
+                }
 
                 // Time
                 const timeEl = eventEl.createDiv({ cls: 'calendar-event-time' });
