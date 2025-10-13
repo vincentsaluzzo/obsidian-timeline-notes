@@ -160,6 +160,11 @@ export class TimelineView extends ItemView {
       }
     }
 
+    // Manually trigger initial visible day change for today
+    const todayDate = new Date(this.referenceDate);
+    this.currentVisibleDate = todayDate;
+    this.onVisibleDayChanged(todayDate);
+
     // Set up scroll listener
     this.scrollContainer.addEventListener("scroll", () => this.onScroll());
 
@@ -214,18 +219,20 @@ export class TimelineView extends ItemView {
         }
 
         // Find the entry that is most visible at the top
-        // Once we've scrolled past a day by 100px (the margin), we should switch to the next day
+        // We want to find the day that is currently at the top of the viewport
         let topMostEntry: IntersectionObserverEntry | undefined;
-        let topMostY = Infinity;
+        let closestToTop = Infinity;
 
         entries.forEach((entry: IntersectionObserverEntry) => {
           if (entry.isIntersecting && entry.target) {
             const rect = entry.boundingClientRect;
-            // Only consider entries that are within 100px of the top (accounting for the 100px margin)
-            // If rect.top is negative, it means the day has scrolled past the top
-            // We want to switch to the next day once the previous day is fully past (< -100px)
-            if (rect.top < topMostY && rect.top > -100) {
-              topMostY = rect.top;
+            // Find the day that is closest to the top of the viewport
+            // Use absolute value to handle both scrolling up and down
+            const distanceFromTop = Math.abs(rect.top);
+
+            // Prefer entries that are near the top (within 200px)
+            if (distanceFromTop < closestToTop && rect.top < 200) {
+              closestToTop = distanceFromTop;
               topMostEntry = entry;
             }
           }
