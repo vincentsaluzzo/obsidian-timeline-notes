@@ -3,6 +3,7 @@ import { GoogleCalendarAPI, CalendarEvent } from '../calendar/GoogleCalendarAPI'
 import { WikiLinkFormatter } from '../utils/WikiLinkFormatter';
 import { DateUtils } from '../utils/DateUtils';
 import TimelineNotesPlugin from '../../main';
+import { TimelineView } from './TimelineView';
 
 export const CALENDAR_VIEW_TYPE = 'google-calendar-view';
 
@@ -67,7 +68,13 @@ export class CalendarView extends ItemView {
         );
 
         // Initial load
-        this.onActiveFileChanged();
+        if (this.isTimelineViewActive()) {
+            // If timeline is already active (e.g., on Obsidian startup), load today's events
+            this.currentDate = new Date();
+            await this.refreshEvents();
+        } else {
+            this.onActiveFileChanged();
+        }
         this.startAutoRefresh();
     }
 
@@ -179,8 +186,18 @@ export class CalendarView extends ItemView {
             // Create event list
             const eventList = container.createDiv({ cls: 'calendar-event-list' });
 
+            const now = new Date();
+
             this.events.forEach(event => {
                 const eventEl = eventList.createDiv({ cls: 'calendar-event-item' });
+
+                // Check if event is in the past
+                if (event.end) {
+                    const eventEndTime = new Date(event.end);
+                    if (eventEndTime < now) {
+                        eventEl.addClass('past-event');
+                    }
+                }
 
                 // Time
                 const timeEl = eventEl.createDiv({ cls: 'calendar-event-time' });
@@ -340,34 +357,67 @@ export class CalendarView extends ItemView {
      * Looks for MarkdownView with an editor, excluding the calendar view itself
      */
     private findMarkdownEditor(): Editor | null {
-        // Check if we're in timeline view - if so, find the editor in the currently visible day
+        // Check if we're in timeline view - if so, use the last focused editor
         const timelineLeaves = this.app.workspace.getLeavesOfType('daily-timeline-view');
         if (timelineLeaves.length > 0) {
-            // Get all leaves in the timeline container
-            const timelineContainer = timelineLeaves[0].view.containerEl;
-            const leaves = this.app.workspace.getLeavesOfType('markdown');
+            const timelineView = timelineLeaves[0].view;
 
-            // Find the most visible editor in the timeline view
-            let closestEditor: Editor | null = null;
-            let closestDistance = Infinity;
+            if (timelineView instanceof TimelineView) {
+                // First priority: Get the last focused editor from timeline view
+                const lastFocusedEditor = timelineView.getLastFocusedEditor();
+                if (lastFocusedEditor) {
+                    return lastFocusedEditor;
+                }
 
-            for (const leaf of leaves) {
-                const view = leaf.view;
-                if (view instanceof MarkdownView && view.editor) {
-                    const viewRect = view.containerEl.getBoundingClientRect();
-                    // Check if this view is inside the timeline container
-                    if (timelineContainer.contains(view.containerEl)) {
-                        const distance = Math.abs(viewRect.top);
-                        if (distance < closestDistance && viewRect.top >= 0 && viewRect.bottom > 0) {
-                            closestEditor = view.editor;
-                            closestDistance = distance;
+                // Second priority: Check if any editor currently has focus
+                const activeElement = document.activeElement;
+                if (activeElement) {
+                    // Access the day sections to find which contains the active element
+                    // @ts-ignore - accessing private property
+                    const daySections = timelineView.daySections as Map<number, any>;
+
+                    if (daySections && daySections.size > 0) {
+                        for (const [offset, section] of daySections.entries()) {
+                            const container = section.getContainer();
+                            if (container && container.contains(activeElement)) {
+                                const editor = section.getEditor();
+                                if (editor) {
+                                    return editor;
+                                }
+                            }
                         }
                     }
                 }
-            }
 
-            if (closestEditor) {
-                return closestEditor;
+                // Third priority (fallback): find the most visible editor
+                // @ts-ignore - accessing private property
+                const daySections = timelineView.daySections as Map<number, any>;
+
+                if (daySections && daySections.size > 0) {
+                    let closestEditor: Editor | null = null;
+                    let closestDistance = Infinity;
+
+                    daySections.forEach((section) => {
+                        const container = section.getContainer();
+                        if (container) {
+                            const rect = container.getBoundingClientRect();
+                            const distance = Math.abs(rect.top);
+
+                            // Only consider visible sections (within viewport)
+                            if (rect.top >= 0 && rect.bottom > 0 && distance < closestDistance) {
+                                const editor = section.getEditor();
+                                if (editor) {
+                                    closestEditor = editor;
+                                    closestDistance = distance;
+                                }
+                            }
+                        }
+                    });
+
+                    if (closestEditor) {
+                        return closestEditor;
+                    }
+                }
             }
         }
 
