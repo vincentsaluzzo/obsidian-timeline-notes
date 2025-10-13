@@ -210,7 +210,7 @@
 }
 
 .timeline-toolbar {
-    display: flex;
+    display: inline-flex;
     justify-content: flex-end;
     align-items: center;
     gap: 8px;
@@ -218,6 +218,8 @@
     background: var(--background-primary);
     border-bottom: 1px solid var(--background-modifier-border);
     flex-shrink: 0;
+    width: auto;
+    align-self: flex-end;
 }
 
 .timeline-calendar-button {
@@ -353,11 +355,16 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 20px;
+    padding: 0 20px 20px 20px;
 }
 
 .timeline-day-container {
     margin-bottom: 100px;
+    padding-top: 50px;
+}
+
+.timeline-day-container:first-child {
+    padding-top: 50px;
 }
 
 .timeline-day-editor {

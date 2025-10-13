@@ -58,7 +58,11 @@ export class GoogleCalendarAPI {
 
                 // Extract attendees
                 const attendees = (event.attendees || [])
-                    .filter(attendee => attendee.email && !attendee.self) // Exclude self
+                    .filter(attendee =>
+                        attendee.email &&
+                        !attendee.self &&
+                        !attendee.resource // Exclude meeting rooms and resources
+                    )
                     .map(attendee => ({
                         email: attendee.email!,
                         displayName: attendee.displayName || undefined
